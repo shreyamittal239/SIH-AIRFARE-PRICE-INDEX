@@ -30,11 +30,11 @@ SIH-AIRFARE-PRICE-INDEX/
 │   │   │   ├── database.py   # Engine and session factory
 │   │   │   ├── seed.py       # Seed data for booking windows
 │   │   │   └── models/       # 13 SQLAlchemy 2.x models
-│   │   ├── collectors/
-│   │   │   └── playwright/
-│   │   └── processing/
-│   │       ├── cleaning/
-│   │       └── index_engine/
+│   ├── collectors/
+│   │   └── playwright/       # Playwright browser automation foundation
+│   ├── processing/
+│   │   ├── cleaning/
+│   │   └── index_engine/
 │   ├── requirements.txt      # Pinned backend dependencies
 │   └── tests/                # Test suite
 ├── frontend/
@@ -141,3 +141,99 @@ Verify the database connection, constraints, foreign keys, and nullability seman
 ```powershell
 & backend\.venv\Scripts\pytest.exe -v backend/tests/test_database.py
 ```
+
+---
+
+## Data Collection Layer (Playwright POC)
+
+### 1. Role of Playwright in the System
+
+Playwright provides headless and headful browser automation to simulate user flight searches and collect real-time fare observations across domestic airlines (IndiGo, Air India, SpiceJet, etc.) and OTAs (MakeMyTrip, Yatra, EaseMyTrip, etc.).
+
+Collected quotations are mapped directly to the `fare_observations` database table for downstream cleaning and price index calculation:
+
+```text
+Playwright Browser Automation
+        ↓
+Website-Specific Raw Extraction
+        ↓
+Normalized Observation Mapping
+        ↓
+fare_observations Database Table
+        ↓
+Statistical Cleaning & Filtering
+        ↓
+Representative Daily Fare
+        ↓
+Route & National Index Engine
+```
+
+> [!NOTE]
+> This initial setup is a **browser-automation proof-of-concept**. Airline and OTA specific scraping modules will be added incrementally following the `BaseCollector` contract. The Playwright layer collects raw observations and does **not** perform index weighting, CPI calculation, or statistical cleaning.
+
+### 2. Activate Python Virtual Environment
+
+From the project root on Windows PowerShell:
+
+```powershell
+.\backend\.venv\Scripts\Activate.ps1
+```
+
+### 3. Run the Playwright Browser Test
+
+The browser test verifies that Playwright can launch Chromium, open a target web page (`https://example.com`), extract metadata (page title, URL, and heading), and shut down cleanly.
+
+**Direct CLI execution (opens visible Chromium browser window by default):**
+
+```powershell
+& backend\.venv\Scripts\python.exe -m backend.collectors.playwright.test_browser
+```
+
+*(To run headlessly from CLI, pass the `--headless` flag):*
+```powershell
+& backend\.venv\Scripts\python.exe -m backend.collectors.playwright.test_browser --headless
+```
+
+**Pytest execution:**
+
+```powershell
+& backend\.venv\Scripts\pytest.exe -v backend/collectors/playwright/test_browser.py
+```
+
+### 4. Expected Output
+
+Running the test produces structured logging and prints metadata:
+
+```text
+2026-09-08 23:01:36,900 [INFO] test_browser: === Starting Playwright Browser Test ===
+2026-09-08 23:01:36,901 [INFO] test_browser: Target URL: https://example.com | Headless: False
+2026-09-08 23:01:36,901 [INFO] backend.collectors.playwright.browser: Browser starting: engine=chromium, headless=False, default_timeout=30000ms
+2026-09-08 23:01:42,646 [INFO] backend.collectors.playwright.browser: Browser launched successfully.
+2026-09-08 23:01:46,112 [INFO] backend.collectors.playwright.browser: Page opened.
+2026-09-08 23:01:46,113 [INFO] test_browser: Navigating to https://example.com...
+
+--- BROWSER TEST RESULTS ---
+Page Title  : Example Domain
+Current URL : https://example.com/
+HTTP Status : 200
+----------------------------
+
+Heading Text: 'Example Domain'
+2026-09-08 23:01:47,332 [INFO] test_browser: Browser control verified successfully: Title='Example Domain', URL='https://example.com/'
+2026-09-08 23:01:47,333 [INFO] test_browser: Closing browser session cleanly...
+2026-09-08 23:01:47,333 [INFO] backend.collectors.playwright.browser: Browser closing...
+2026-09-08 23:01:50,514 [INFO] backend.collectors.playwright.browser: Browser closed cleanly.
+2026-09-08 23:01:50,515 [INFO] test_browser: === Playwright Browser Test Completed ===
+SUCCESS: Playwright browser test finished cleanly.
+```
+
+### 5. Configuration Settings
+
+The browser layer reads the following optional environment variables (configured via `.env` or system environment):
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PLAYWRIGHT_HEADLESS` | `false` | Set to `true` to run browsers without UI in production or background runs |
+| `PLAYWRIGHT_TIMEOUT` | `30000` | Default navigation and selector timeout in milliseconds |
+| `PLAYWRIGHT_BROWSER` | `chromium` | Browser engine (`chromium`, `firefox`, or `webkit`) |
+

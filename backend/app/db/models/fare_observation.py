@@ -1,6 +1,7 @@
 from datetime import datetime, date, time
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
+# pyrefly: ignore [missing-import]
 from sqlalchemy import (
     String,
     Boolean,

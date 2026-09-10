@@ -1,4 +1,5 @@
 from typing import List, Optional, Any, Dict, TYPE_CHECKING
+# pyrefly: ignore [missing-import]
 from sqlalchemy import String, Boolean, SmallInteger, Identity
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
