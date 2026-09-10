@@ -105,6 +105,58 @@ def test_map_quote_to_observation_unit():
     assert obs.seats_remaining is None
 
 
+def test_map_air_india_express_quote_to_observation_unit():
+    """Unit test verifying that Air India Express FlightQuotes map accurately to FareObservation."""
+    quote = FlightQuote(
+        airline="Air India Express",
+        flight_number="IX 1165/1027",
+        origin="DEL",
+        destination="BOM",
+        travel_date=date(2026, 9, 17),
+        departure_time=time(5, 45),
+        arrival_time=time(11, 5),
+        cabin_class="ECONOMY",
+        fare_family="Xpress Value",
+        stops=1,
+        total_fare=Decimal("5667.00"),
+        currency="INR",
+        availability=True,
+        source="Air India Express Direct",
+        observed_at=datetime(2026, 9, 10, 10, 0, tzinfo=timezone.utc),
+    )
+    dims = ResolvedDimensions(
+        airline_id=5,
+        data_source_id=6,
+        route_id=1,
+        window_id=2,
+        advance_days=7,
+    )
+    obs = map_quote_to_observation(quote, run_id=25, dimensions=dims)
+
+    assert obs.run_id == 25
+    assert obs.airline_id == 5
+    assert obs.data_source_id == 6
+    assert obs.route_id == 1
+    assert obs.window_id == 2
+    assert obs.flight_number == "IX 1165/1027"
+    assert obs.advance_days == 7
+    assert obs.travel_date == date(2026, 9, 17)
+    assert obs.scheduled_departure_time == time(5, 45)
+    assert obs.scheduled_arrival_time == time(11, 5)
+    assert obs.origin_airport_code == "DEL"
+    assert obs.destination_airport_code == "BOM"
+    assert obs.cabin_class == "ECONOMY"
+    assert obs.fare_family == "Xpress Value"
+    assert obs.is_non_stop is False
+    assert obs.stops == 1
+    assert obs.total_fare == Decimal("5667.00")
+    assert obs.currency == "INR"
+    assert obs.is_available is True
+    assert obs.quality_status == "VALID"
+    assert len(obs.fingerprint_hash) == 64
+
+
+
 def test_resolver_dimensions(db):
     """Test resolution of Airline, DataSource, Route, and BookingWindow without hardcoded IDs."""
     resolver = DimensionResolver(db, auto_create_reference_data=True)
