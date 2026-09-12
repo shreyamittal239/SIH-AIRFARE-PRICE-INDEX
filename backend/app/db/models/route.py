@@ -39,7 +39,7 @@ class Route(Base):
     )
 
     route_id: Mapped[int] = mapped_column(
-        Integer, Identity(always=True), primary_key=True
+        Integer, primary_key=True, autoincrement=True
     )
     origin_city_id: Mapped[int] = mapped_column(
         SmallInteger,

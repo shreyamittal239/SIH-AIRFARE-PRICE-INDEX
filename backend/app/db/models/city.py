@@ -1,5 +1,5 @@
 from typing import List, TYPE_CHECKING
-from sqlalchemy import String, Boolean, SmallInteger, Identity
+from sqlalchemy import String, Boolean, SmallInteger, Identity, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.db.base import Base
@@ -13,7 +13,7 @@ class City(Base):
     __tablename__ = "cities"
 
     city_id: Mapped[int] = mapped_column(
-        SmallInteger, Identity(always=True), primary_key=True
+        Integer, primary_key=True
     )
     city_code: Mapped[str] = mapped_column(
         String(10), unique=True, nullable=False, index=True

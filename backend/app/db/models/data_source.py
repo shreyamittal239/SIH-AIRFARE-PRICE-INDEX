@@ -1,5 +1,5 @@
 from typing import List, TYPE_CHECKING
-from sqlalchemy import String, Boolean, SmallInteger, Identity
+from sqlalchemy import String, Boolean, SmallInteger, Identity, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.app.db.base import Base
@@ -13,7 +13,7 @@ class DataSource(Base):
     __tablename__ = "data_sources"
 
     source_id: Mapped[int] = mapped_column(
-        SmallInteger, Identity(always=True), primary_key=True
+        Integer, primary_key=True
     )
     source_code: Mapped[str] = mapped_column(
         String(30), unique=True, nullable=False

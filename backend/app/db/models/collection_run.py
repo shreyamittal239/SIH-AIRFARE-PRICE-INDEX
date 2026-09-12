@@ -30,7 +30,7 @@ class CollectionRun(Base):
     )
 
     run_id: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=True), primary_key=True
+        Integer, primary_key=True
     )
     source_id: Mapped[int] = mapped_column(
         SmallInteger,

@@ -39,7 +39,7 @@ class RouteDailySummary(Base):
     )
 
     summary_id: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=True), primary_key=True
+        BigInteger, primary_key=True, autoincrement=True
     )
     observation_date: Mapped[date] = mapped_column(Date, nullable=False)
     route_id: Mapped[int] = mapped_column(

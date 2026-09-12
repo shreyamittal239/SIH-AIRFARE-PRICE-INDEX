@@ -110,7 +110,9 @@ class BrowserManager:
             self.launch()
             assert self._browser is not None
 
-        context = self._browser.new_context(**kwargs)
+        context = self._browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        )
         context.set_default_timeout(self.timeout_ms)
         self._contexts.append(context)
         logger.debug("Browser context created.")

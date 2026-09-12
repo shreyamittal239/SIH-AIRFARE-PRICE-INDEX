@@ -54,7 +54,7 @@ class FareObservation(Base):
     )
 
     observation_id: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=True), primary_key=True
+        Integer, primary_key=True
     )
     run_id: Mapped[int] = mapped_column(
         BigInteger,

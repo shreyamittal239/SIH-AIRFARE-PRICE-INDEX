@@ -1,6 +1,6 @@
 from typing import List, Optional, Any, Dict, TYPE_CHECKING
 # pyrefly: ignore [missing-import]
-from sqlalchemy import String, Boolean, SmallInteger, Identity
+from sqlalchemy import String, Boolean, SmallInteger, Identity, JSON, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,7 +14,7 @@ class Airline(Base):
     __tablename__ = "airlines"
 
     airline_id: Mapped[int] = mapped_column(
-        SmallInteger, Identity(always=True), primary_key=True
+        Integer, primary_key=True
     )
     airline_code: Mapped[str] = mapped_column(
         String(3), unique=True, nullable=False, index=True
@@ -23,7 +23,7 @@ class Airline(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # Open JSONB metadata for future extensibility without migrations
     metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        "metadata", JSONB, nullable=True
+        "metadata", JSON, nullable=True
     )
 
     # Relationships

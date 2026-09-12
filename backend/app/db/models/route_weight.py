@@ -36,7 +36,7 @@ class RouteWeight(Base):
     )
 
     weight_id: Mapped[int] = mapped_column(
-        Integer, Identity(always=True), primary_key=True
+        Integer, primary_key=True, autoincrement=True
     )
     route_id: Mapped[int] = mapped_column(
         Integer,

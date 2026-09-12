@@ -52,7 +52,7 @@ class IndexDaily(Base):
     )
 
     index_id: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=True), primary_key=True
+        BigInteger, primary_key=True, autoincrement=True
     )
     index_date: Mapped[date] = mapped_column(Date, nullable=False)
     base_period_code: Mapped[str] = mapped_column(String(30), nullable=False)
