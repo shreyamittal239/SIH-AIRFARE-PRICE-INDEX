@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from backend.app.db.models.base_period_fare import BasePeriodFare
     from backend.app.db.models.route_daily_summary import RouteDailySummary
     from backend.app.db.models.index_daily import IndexDaily
+    from backend.app.db.models.dgca_fare_benchmark import DGCAFareBenchmark
+
 
 
 class Route(Base):
@@ -82,3 +84,7 @@ class Route(Base):
     index_records: Mapped[List["IndexDaily"]] = relationship(
         back_populates="route"
     )
+    dgca_benchmarks: Mapped[List["DGCAFareBenchmark"]] = relationship(
+        back_populates="route"
+    )
+

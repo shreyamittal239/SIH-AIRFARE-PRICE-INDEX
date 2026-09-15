@@ -142,6 +142,10 @@ class RouteDailySummaryService:
             if fare is None or Decimal(str(fare)) <= Decimal("0"):
                 continue
 
+            cabin = getattr(obs, "cabin_class", "ECONOMY")
+            if cabin != "ECONOMY":
+                continue
+
             if status in {"MISSING", "INVALID_FARE", "SOLD_OUT", "DUPLICATE", "CANCELLED", "SCRAPE_ERROR"}:
                 continue
 
@@ -293,7 +297,7 @@ class RouteDailySummaryService:
                 mean_fare=stats.mean_fare,
                 geometric_mean_fare=stats.geometric_mean_fare,
                 representative_fare=stats.representative_fare,
-                is_imputed=False,
+                is_imputed=stats.count < 3,
                 imputation_method=None,
             )
             summaries.append(summary)

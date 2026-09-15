@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from backend.app.db.models.base_period_fare import BasePeriodFare
     from backend.app.db.models.route_daily_summary import RouteDailySummary
     from backend.app.db.models.index_daily import IndexDaily
+    from backend.app.db.models.booking_window_weight import BookingWindowWeight
+
 
 
 class BookingWindow(Base):
@@ -43,3 +45,7 @@ class BookingWindow(Base):
     index_records: Mapped[List["IndexDaily"]] = relationship(
         back_populates="booking_window"
     )
+    window_weights: Mapped[List["BookingWindowWeight"]] = relationship(
+        back_populates="booking_window"
+    )
+

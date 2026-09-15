@@ -11,6 +11,8 @@ from backend.app.db.models.route_weight import RouteWeight
 from backend.app.db.models.base_period_fare import BasePeriodFare
 from backend.app.db.models.route_daily_summary import RouteDailySummary
 from backend.app.db.models.index_daily import IndexDaily
+from backend.app.db.models.booking_window_weight import BookingWindowWeight
+from backend.app.db.models.dgca_fare_benchmark import DGCAFareBenchmark
 
 __all__ = [
     "City",
@@ -26,4 +28,6 @@ __all__ = [
     "BasePeriodFare",
     "RouteDailySummary",
     "IndexDaily",
+    "BookingWindowWeight",
+    "DGCAFareBenchmark",
 ]

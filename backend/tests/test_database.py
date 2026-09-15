@@ -22,6 +22,8 @@ from backend.app.db.models import (
     BasePeriodFare,
     RouteDailySummary,
     IndexDaily,
+    BookingWindowWeight,
+    DGCAFareBenchmark,
 )
 from backend.app.db.seed import seed_booking_windows
 
@@ -358,3 +360,82 @@ def test_same_flight_in_different_runs_allowed(db_session):
     assert obs_evening.observation_id is not None
     assert obs_morning.total_fare == Decimal("4200.00")
     assert obs_evening.total_fare == Decimal("4800.00")
+
+def test_booking_window_weight_range_constraint(db_session):
+    """Verify that weights outside [0, 1] are rejected."""
+    seed_booking_windows(db_session)
+    window = db_session.scalar(select(BookingWindow).where(BookingWindow.window_code == "T+1"))
+
+    # Test too high
+    with db_session.begin_nested():
+        w_high = BookingWindowWeight(window_id=window.window_id, weight=Decimal("1.1"), is_active=True)
+        db_session.add(w_high)
+        with pytest.raises(IntegrityError):
+            db_session.flush()
+
+    # Test too low
+    with db_session.begin_nested():
+        w_low = BookingWindowWeight(window_id=window.window_id, weight=Decimal("-0.1"), is_active=True)
+        db_session.add(w_low)
+        with pytest.raises(IntegrityError):
+            db_session.flush()
+
+
+def test_booking_window_weight_active_uniqueness(db_session):
+    """Verify only one active weight per window is allowed."""
+    seed_booking_windows(db_session)
+    window = db_session.scalar(select(BookingWindow).where(BookingWindow.window_code == "T+1"))
+
+    # First active weight
+    w1 = BookingWindowWeight(window_id=window.window_id, weight=Decimal("0.5"), is_active=True)
+    db_session.add(w1)
+    db_session.flush()
+
+    # Second active weight - should fail
+    with db_session.begin_nested():
+        w2 = BookingWindowWeight(window_id=window.window_id, weight=Decimal("0.3"), is_active=True)
+        db_session.add(w2)
+        with pytest.raises(IntegrityError):
+            db_session.flush()
+
+    # Inactive weight - should be allowed
+    w_inactive = BookingWindowWeight(window_id=window.window_id, weight=Decimal("0.2"), is_active=False)
+    db_session.add(w_inactive)
+    db_session.flush()
+    assert w_inactive.id is not None
+
+
+def test_dgca_fare_benchmark_uniqueness(db_session):
+    """Verify unique constraint on (route_id, period_start, period_end)."""
+    city_a = City(city_code="B1", city_name="City A", state_name="State A")
+    city_b = City(city_code="B2", city_name="City B", state_name="State B")
+    db_session.add_all([city_a, city_b])
+    db_session.flush()
+    
+    route = Route(origin_city_id=city_a.city_id, destination_city_id=city_b.city_id, route_code="B1-B2")
+    db_session.add(route)
+    db_session.flush()
+    
+    start = date(2026, 1, 1)
+    end = date(2026, 1, 31)
+    
+    b1 = DGCAFareBenchmark(route_id=route.route_id, period_start=start, period_end=end, dgca_avg_fare=Decimal("5000.00"))
+    db_session.add(b1)
+    db_session.flush()
+    
+    b2 = DGCAFareBenchmark(route_id=route.route_id, period_start=start, period_end=end, dgca_avg_fare=Decimal("6000.00"))
+    db_session.add(b2)
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+    db_session.rollback()
+
+
+def test_dgca_fare_benchmark_national_level(db_session):
+    """Verify that route_id can be NULL for national-level benchmarks."""
+    start = date(2026, 1, 1)
+    end = date(2026, 1, 31)
+    
+    b_nat = DGCAFareBenchmark(route_id=None, period_start=start, period_end=end, dgca_avg_fare=Decimal("4500.00"))
+    db_session.add(b_nat)
+    db_session.flush()
+    assert b_nat.benchmark_id is not None
