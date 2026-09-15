@@ -32,12 +32,17 @@ class IndexDaily(Base):
             "index_level IN ('NATIONAL_COMPOSITE', 'WINDOW_COMPOSITE', 'ROUTE_LEVEL')",
             name="ck_index_level_valid",
         ),
+        CheckConstraint(
+            "period_type IN ('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY')",
+            name="ck_index_daily_period_type",
+        ),
         # Expression-based unique index handling nullable route_id and window_id
         Index(
             "uq_index_daily_coalesce",
             "index_date",
             "base_period_code",
             "index_level",
+            "period_type",
             text("COALESCE(route_id, -1)"),
             text("COALESCE(window_id, -1)"),
             "formula_type",
@@ -57,6 +62,7 @@ class IndexDaily(Base):
     index_date: Mapped[date] = mapped_column(Date, nullable=False)
     base_period_code: Mapped[str] = mapped_column(String(30), nullable=False)
     index_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    period_type: Mapped[str] = mapped_column(String(10), nullable=False, server_default="DAILY")
     route_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("routes.route_id", ondelete="CASCADE"),
