@@ -95,11 +95,14 @@ def parse_flight_card_lines(
         if "direct" in lower or "non-stop" in lower:
             stops = 0
             break
-        elif "1 stop" in lower:
+        elif "1 stop" in lower or "1-stop" in lower:
             stops = 1
             break
-        elif "2 stop" in lower:
+        elif "2 stop" in lower or "2-stop" in lower:
             stops = 2
+            break
+        elif "connecting" in lower or "halt at" in lower:
+            stops = 1
             break
 
     # Detect fares (e.g., lines with ₹ or numbers preceded/followed by Rupee)
@@ -273,7 +276,7 @@ class FirstAirlineCollector(BaseCollector):
                                        text.includes('unfortunately, there are no flights');
                     const hasCards = Array.from(document.querySelectorAll('div, span')).some(d => {
                         const t = d.innerText ? d.innerText.trim() : '';
-                        return /^SG[\s-]*\d{3,4}$/i.test(t) || (t.startsWith('SG ') && t.length < 15);
+                        return /^SG[\s-]*\d{3,4}([\s,]+SG[\s-]*\d{3,4})*$/i.test(t) || (t.startsWith('SG ') && t.length < 35);
                     });
                     return hasZeroInv || hasCards;
                 }""",
@@ -316,7 +319,10 @@ class FirstAirlineCollector(BaseCollector):
         """Extract raw flight rows from DOM."""
         raw_cards = page.evaluate('''() => {
             const allDivs = Array.from(document.querySelectorAll('div'));
-            const flightNumDivs = allDivs.filter(d => /^SG\\s*\\d{3,4}$/.test(d.innerText ? d.innerText.trim() : ''));
+            const flightNumDivs = allDivs.filter(d => {
+                const t = d.innerText ? d.innerText.trim() : '';
+                return /^SG[\\s-]*\\d{3,4}([\\s,]+SG[\\s-]*\\d{3,4})*$/i.test(t);
+            });
             
             const seen = new Set();
             const results = [];

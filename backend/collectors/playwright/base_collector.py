@@ -82,9 +82,12 @@ class BaseCollector(ABC):
         """Clean up page and browser manager resources."""
         if self.page is not None:
             try:
+                ctx = self.page.context
                 self.page.close()
+                if ctx is not None and hasattr(self.browser_manager, "close_context"):
+                    self.browser_manager.close_context(ctx)
             except Exception as err:
-                logger.debug("[%s] Error closing page: %s", self.source_name, err)
+                logger.debug("[%s] Error closing page/context: %s", self.source_name, err)
             finally:
                 self.page = None
 
