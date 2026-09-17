@@ -237,3 +237,33 @@ The browser layer reads the following optional environment variables (configured
 | `PLAYWRIGHT_TIMEOUT` | `30000` | Default navigation and selector timeout in milliseconds |
 | `PLAYWRIGHT_BROWSER` | `chromium` | Browser engine (`chromium`, `firefox`, or `webkit`) |
 
+---
+
+## Automated Scraping Scheduler
+
+The automated scheduler triggers daily airfare collection cycles across the 25 DGCA basket routes and 5 booking windows for configured collectors.
+
+### Features
+- **Schedule**: Daily at 02:00 AM IST (`Asia/Kolkata`) using APScheduler.
+- **Mutual Exclusion**: PostgreSQL session-level advisory locking (`pg_try_advisory_lock`) strictly prevents overlapping runs and auto-releases on crashes.
+- **Safety & Cleanup**: 180-minute runtime watchdog, clean browser and DB connection disposal, zero orphan `RUNNING` runs.
+- **Collector Policy**: Yatra, EaseMyTrip, SpiceJet, and Air India Express are enabled by default; Cleartrip is disabled by default.
+
+### Commands (Windows PowerShell)
+
+```powershell
+# 1. Dry Run (inspect task matrix and plan without scraping)
+& backend\.venv\Scripts\python.exe -m backend.scheduler.scheduler --dry-run
+
+# 2. Manual One-Shot (run single cycle immediately)
+& backend\.venv\Scripts\python.exe -m backend.scheduler.scheduler --run-now
+
+# 3. Development Smoke Test (fast subset)
+& backend\.venv\Scripts\python.exe -m backend.scheduler.scheduler --run-now --route-limit 1 --window-codes T+7 --sources spicejet
+
+# 4. Recurring Scheduler Daemon (run continuously)
+& backend\.venv\Scripts\python.exe -m backend.scheduler.scheduler
+```
+
+For complete documentation, architecture diagrams, and production deployment options, see [docs/scheduler.md](file:///c:/SIH-AIRFARE-PRICE-INDEX/docs/scheduler.md).
+
