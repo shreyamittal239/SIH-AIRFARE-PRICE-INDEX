@@ -174,57 +174,61 @@ class FirstAirlineCollector(BaseCollector):
 
         self.passengers = passengers or int(os.getenv("PASSENGERS", "1"))
         self.cabin_class = cabin_class or os.getenv("CABIN_CLASS", "ECONOMY")
+        self.is_zero_inventory = False
+        self.no_inventory_reason: Optional[str] = None
 
     def build_search_url(self) -> str:
         """Construct the direct search URL as a robust navigation fallback."""
         date_str = self.travel_date.strftime("%Y-%m-%d")
         return (
             f"https://www.spicejet.com/search?from={self.origin}&to={self.destination}"
-            f"&tripType=1&departure={date_str}&adult={self.passengers}"
-            f"&child=0&srCitizen=0&infant=0&currency=INR&redirectTo=/"
+            f"&tripType=1&departure={date_str}&adult={self.passengers}&child=0&srCitizen=0"
+            f"&infant=0&currency=INR&redirectTo=/"
         )
 
     def search_via_form(self, page: Page) -> bool:
-        """Navigate to homepage and submit flight search through the visual form."""
+        """Automate interactive form-based search on the SpiceJet homepage."""
         logger.info("[SpiceJet] Navigating to homepage: https://www.spicejet.com/")
-        page.goto("https://www.spicejet.com/", wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(2500)
+        page.goto("https://www.spicejet.com/", wait_until="domcontentloaded", timeout=35000)
+        page.wait_for_timeout(3000)
 
-        # 1. Interact with Destination box
-        logger.info("[SpiceJet] Selecting destination: %s", self.destination)
-        dest_box = page.locator("[data-testid='to-testID-destination']")
-        if not dest_box.is_visible():
-            logger.warning("[SpiceJet] Destination box not visible on homepage.")
-            return False
-        dest_box.click()
-        page.wait_for_timeout(1000)
-
-        # 2. Select target destination city (e.g. BOM / Mumbai)
-        city_locator = page.locator(f"div:has-text('{self.destination}')").last
-        if not city_locator.is_visible():
-            # Scroll city container
-            page.mouse.wheel(0, 300)
+        # 1. Select Origin
+        origin_input = page.locator("[data-testid='to-test-id-origin'] input")
+        if origin_input.is_visible():
+            origin_input.click()
             page.wait_for_timeout(500)
-            city_locator = page.locator(f"div:has-text('{self.destination}')").last
+            origin_opt = page.locator(f"div:has-text('{self.origin}')").first
+            if origin_opt.is_visible():
+                origin_opt.click()
 
-        if city_locator.is_visible():
-            city_locator.click()
-            logger.info("[SpiceJet] Clicked destination city: %s", self.destination)
-        else:
-            logger.warning("[SpiceJet] City %s not found in list.", self.destination)
-            return False
+        # 2. Select Destination
+        logger.info("[SpiceJet] Selecting destination: %s", self.destination)
+        dest_input = page.locator("[data-testid='to-test-id-destination'] input")
+        if dest_input.is_visible():
+            dest_input.click()
+            page.wait_for_timeout(500)
+            dest_opt = page.locator(f"div[data-testid*='auto-cmp-opt']:has-text('{self.destination}')").first
+            if not dest_opt.is_visible():
+                dest_opt = page.locator(f"div:has-text('{self.destination}')").first
+            if dest_opt.is_visible():
+                dest_opt.click()
+                logger.info("[SpiceJet] Clicked destination city: %s", self.destination)
 
         page.wait_for_timeout(1000)
 
-        # 3. Calendar opens automatically. Select target day to dismiss
-        day_num = str(self.travel_date.day)
-        logger.info("[SpiceJet] Selecting travel day in calendar: %s", day_num)
-        day_locator = page.locator(f"div[data-testid*='calendar-day-{day_num}']").first
-        if day_locator.is_visible():
-            day_locator.click()
-        else:
-            # Fallback: dismiss calendar via Escape
-            page.keyboard.press("Escape")
+        # 3. Select Travel Date in Calendar
+        day_str = str(self.travel_date.day)
+        logger.info("[SpiceJet] Selecting travel day in calendar: %s", day_str)
+        try:
+            day_cell = page.locator(f"div[data-testid*='calendar-day']:has-text('{day_str}')").first
+            if day_cell.is_visible():
+                day_cell.click()
+            else:
+                day_fallback = page.locator(f"div:has-text('{day_str}')").first
+                if day_fallback.is_visible():
+                    day_fallback.click()
+        except Exception as err:
+            logger.warning("[SpiceJet] Calendar day selection encountered notice: %s", err)
 
         page.wait_for_timeout(1000)
 
@@ -256,13 +260,54 @@ class FirstAirlineCollector(BaseCollector):
             logger.info("[SpiceJet] Loading search results via direct URL: %s", direct_url)
             self.page.goto(direct_url, wait_until="domcontentloaded", timeout=35000)
 
-        logger.info("[SpiceJet] Waiting for flight results to load...")
+        logger.info("[SpiceJet] Waiting for flight results or zero-inventory indicator...")
         try:
-            self.page.wait_for_selector("div:has-text('SG ')", timeout=25000)
-            self.page.wait_for_timeout(3000)
+            # Combined wait: resolves immediately when EITHER flight cards OR explicit zero-inventory text appears
+            self.page.wait_for_function(
+                r"""() => {
+                    const text = document.body ? document.body.innerText.toLowerCase() : '';
+                    const hasZeroInv = text.includes('no flights available') ||
+                                       text.includes('sorry, no flights') ||
+                                       text.includes('no flights found') ||
+                                       text.includes('no available flights') ||
+                                       text.includes('unfortunately, there are no flights');
+                    const hasCards = Array.from(document.querySelectorAll('div, span')).some(d => {
+                        const t = d.innerText ? d.innerText.trim() : '';
+                        return /^SG[\s-]*\d{3,4}$/i.test(t) || (t.startsWith('SG ') && t.length < 15);
+                    });
+                    return hasZeroInv || hasCards;
+                }""",
+                timeout=25000,
+            )
+            self.page.wait_for_timeout(2000)
             logger.info("[SpiceJet] Flight results DOM ready: URL=%s", self.page.url)
+
+            # Check for explicit zero inventory in rendered DOM
+            body_text = self.page.locator("body").inner_text()
+            lower_text = body_text.lower()
+            zero_inv_phrases = [
+                "unfortunately, there are no flights available",
+                "there are no flights available",
+                "no flights available",
+                "no flights found",
+                "sorry, no flights",
+                "no available flights",
+            ]
+            for phrase in zero_inv_phrases:
+                if phrase in lower_text:
+                    logger.info(
+                        "[SpiceJet] Explicit zero-inventory confirmed for %s -> %s on %s: '%s'",
+                        self.origin,
+                        self.destination,
+                        self.travel_date,
+                        phrase,
+                    )
+                    self.is_zero_inventory = True
+                    self.no_inventory_reason = f"SpiceJet confirmed: '{phrase}'"
+                    break
+
         except PlaywrightError as err:
-            logger.error("[SpiceJet] Timed out waiting for flight results: %s", err)
+            logger.error("[SpiceJet] Timed out waiting for flight results or zero-inventory indicator: %s", err)
             raise
 
         return self.page
@@ -306,6 +351,13 @@ class FirstAirlineCollector(BaseCollector):
         """Orchestrate search and parse extracted rows into FlightQuote instances."""
         self.navigate_search()
         assert self.page is not None
+
+        if getattr(self, "is_zero_inventory", False):
+            logger.info(
+                "[SpiceJet] Returning empty quotes list due to confirmed zero inventory: %s",
+                getattr(self, "no_inventory_reason", "No flights available"),
+            )
+            return []
 
         raw_cards = self.extract_fares(self.page)
         logger.info("[SpiceJet] Raw flight candidate rows found: %d", len(raw_cards))
