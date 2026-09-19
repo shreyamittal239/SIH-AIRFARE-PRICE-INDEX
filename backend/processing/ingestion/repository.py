@@ -127,6 +127,8 @@ class IngestionRepository:
             for quote in quotes:
                 try:
                     dims = self.resolver.resolve_dimensions(quote)
+                    if run is not None and run.source_id is not None:
+                        dims.data_source_id = run.source_id
                     obs = map_quote_to_observation(quote, run.run_id, dims)
 
                     # Deduplication check: intra-run uniqueness

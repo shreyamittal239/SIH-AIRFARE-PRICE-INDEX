@@ -79,6 +79,11 @@ class BrowserManager:
             logger.debug("Browser is already running.")
             return self._browser
 
+        # If previous browser disconnected or crashed, clean up before restarting
+        if self._browser is not None and not self.is_running:
+            logger.warning("Browser was disconnected or crashed. Cleaning up before relaunch.")
+            self.close()
+
         logger.info(
             "Browser starting: engine=%s, headless=%s, default_timeout=%dms",
             self.browser_name,
@@ -87,9 +92,11 @@ class BrowserManager:
         )
 
         try:
-            self._playwright = sync_playwright().start()
+            if self._playwright is None:
+                self._playwright = sync_playwright().start()
             browser_type = getattr(self._playwright, self.browser_name)
-            self._browser = browser_type.launch(headless=self.headless)
+            launch_args = ["--headless=new"] if self.browser_name == "chromium" and self.headless else []
+            self._browser = browser_type.launch(headless=self.headless, args=launch_args)
             logger.info("Browser launched successfully.")
             return self._browser
         except Exception as err:
@@ -110,13 +117,26 @@ class BrowserManager:
             self.launch()
             assert self._browser is not None
 
-        context = self._browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-        )
+        context_kwargs = {
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "viewport": {"width": 1440, "height": 900},
+        }
+        context_kwargs.update(kwargs)
+        context = self._browser.new_context(**context_kwargs)
         context.set_default_timeout(self.timeout_ms)
         self._contexts.append(context)
         logger.debug("Browser context created.")
         return context
+
+    def close_context(self, context: BrowserContext) -> None:
+        """Close a specific browser context and remove it from tracked contexts."""
+        try:
+            context.close()
+        except Exception as err:
+            logger.debug("Error closing context: %s", err)
+        finally:
+            if context in self._contexts:
+                self._contexts.remove(context)
 
     def new_page(self, context: Optional[BrowserContext] = None) -> Page:
         """Open a new browser page.

@@ -38,6 +38,15 @@ CITY_METADATA = {
     "CCU": ("CCU", "Kolkata", "West Bengal", True),
     "HYD": ("HYD", "Hyderabad", "Telangana", True),
     "GOI": ("GOI", "Goa", "Goa", False),
+    "PNQ": ("PNQ", "Pune", "Maharashtra", False),
+    "AMD": ("AMD", "Ahmedabad", "Gujarat", False),
+    "SXR": ("SXR", "Srinagar", "Jammu and Kashmir", False),
+    "GAU": ("GAU", "Guwahati", "Assam", False),
+    "PAT": ("PAT", "Patna", "Bihar", False),
+    "COK": ("COK", "Kochi", "Kerala", False),
+    "LKO": ("LKO", "Lucknow", "Uttar Pradesh", False),
+    "IXB": ("IXB", "Bagdogra", "West Bengal", False),
+    "IXL": ("IXL", "Leh", "Ladakh", False),
 }
 
 
@@ -105,8 +114,16 @@ class DimensionResolver:
         )
         source = self.db.scalars(stmt).first()
 
-        if code in {"YATRA", "MAKEMYTRIP", "EASEMYTRIP", "CLEARTRIP", "IXIGO", "GOIBIBO"} and source_type == "AIRLINE_DIRECT":
+        if (
+            code in {"YATRA", "MAKEMYTRIP", "EASEMYTRIP", "CLEARTRIP", "IXIGO", "GOIBIBO"}
+            or any(ota in code for ota in {"YATRA", "MAKEMYTRIP", "EASEMYTRIP", "CLEARTRIP", "IXIGO", "GOIBIBO"})
+            or code.endswith("_OTA")
+        ) and source_type == "AIRLINE_DIRECT":
             source_type = "OTA"
+
+        if source is not None and source.source_type != source_type and source_type == "OTA":
+            source.source_type = "OTA"
+            self.db.flush()
 
         if source is None:
             if not self.auto_create:

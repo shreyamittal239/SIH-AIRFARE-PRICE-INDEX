@@ -3,8 +3,10 @@
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 import os
+from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
+from playwright.sync_api import Error as PlaywrightError
 
 from backend.collectors.playwright.schemas.flight_quote import FlightQuote
 from backend.collectors.playwright.collectors.first_airline_collector import (
@@ -12,6 +14,11 @@ from backend.collectors.playwright.collectors.first_airline_collector import (
     parse_time_string,
     parse_fare_string,
     parse_flight_card_lines,
+)
+from backend.collectors.orchestrator import (
+    SpiceJetCollectorAdapter,
+    CollectionStatus,
+    is_transient_technical_error,
 )
 
 
@@ -189,11 +196,293 @@ def test_collector_configuration_defaults():
     assert custom.passengers == 2
 
 
+# ==============================================================================
+# Focused Validation Tests for Zero-Inventory & Error Distinction
+# ==============================================================================
+
+def test_1_valid_spicejet_inventory():
+    """TEST 1 — Valid SpiceJet inventory.
+
+    Given a page containing valid SpiceJet flight cards:
+    - Flight cards are extracted
+    - FlightQuote objects are created
+    - Existing fare/time/route parsing remains unchanged
+    """
+    mock_page = MagicMock()
+    mock_page.url = "https://www.spicejet.com/search?from=DEL&to=BOM"
+    mock_body = MagicMock()
+    mock_body.inner_text.return_value = "Search Results SG 162 19:55 DEL BOM 22:40 ₹ 7,469"
+    mock_page.locator.return_value = mock_body
+    mock_page.wait_for_function.return_value = None
+
+    collector = FirstAirlineCollector(
+        origin="DEL",
+        destination="BOM",
+        travel_date=date(2026, 9, 23),
+    )
+    collector.page = mock_page
+
+    raw_card = {
+        "flight_number": "SG 162",
+        "text": "19:55\nDEL\n2h 45m\n22:40\nBOM\nSG 162\nDirect\n₹ 7,469\nEarn 232 Points",
+    }
+
+    with patch.object(collector, "search_via_form", return_value=True), \
+         patch.object(collector, "extract_fares", return_value=[raw_card]):
+        quotes = collector.collect_quotes()
+
+    assert len(quotes) == 1
+    quote = quotes[0]
+    assert quote.airline == "SpiceJet"
+    assert quote.flight_number == "SG 162"
+    assert quote.origin == "DEL"
+    assert quote.destination == "BOM"
+    assert quote.travel_date == date(2026, 9, 23)
+    assert quote.departure_time == time(19, 55)
+    assert quote.arrival_time == time(22, 40)
+    assert quote.total_fare == Decimal("7469")
+    assert quote.currency == "INR"
+
+
+def test_2_explicit_zero_inventory():
+    """TEST 2 — Explicit zero inventory.
+
+    Given a page containing SpiceJet's actual 'Unfortunately, there are no flights available.' DOM state:
+    - Collector returns successful zero-inventory result
+    - No 25-second flight-card timeout occurs
+    - Zero FlightQuote records are produced
+    - No scrape error is raised
+    """
+    mock_page = MagicMock()
+    mock_page.url = "https://www.spicejet.com/search?from=BLR&to=DEL"
+    mock_body = MagicMock()
+    mock_body.inner_text.return_value = (
+        "BLR to DEL, 17 Sep 2026\n"
+        "•\n"
+        "1 Adult\n"
+        "Modify Search\n"
+        "Unfortunately, there are no flights available.\n"
+        "Please search again with a different date.\n"
+        "Search again"
+    )
+    mock_page.locator.return_value = mock_body
+    mock_page.wait_for_function.return_value = None
+
+    collector = FirstAirlineCollector(
+        origin="BLR",
+        destination="DEL",
+        travel_date=date(2026, 9, 17),
+    )
+    collector.page = mock_page
+
+    with patch.object(collector, "search_via_form", return_value=True):
+        quotes = collector.collect_quotes()
+
+    assert collector.is_zero_inventory is True
+    assert "unfortunately, there are no flights available" in (collector.no_inventory_reason or "").lower()
+    assert quotes == []
+
+    # Verify adapter behavior
+    adapter = SpiceJetCollectorAdapter()
+    with patch("backend.collectors.playwright.collectors.first_airline_collector.FirstAirlineCollector", return_value=collector):
+        res = adapter.collect(origin="BLR", destination="DEL", travel_date=date(2026, 9, 17))
+
+    assert res.status == CollectionStatus.SUCCESS_NO_INVENTORY
+    assert res.quotes == []
+    assert res.error_message is None
+    assert "no flights available" in (res.no_inventory_reason or "").lower()
+
+
+def test_3_missing_flight_cards_without_explicit_zero_inventory():
+    """TEST 3 — Missing flight cards without explicit zero-inventory.
+
+    Given a page where:
+    - No valid flight cards exist
+    - No explicit zero-inventory message exists
+    Expected:
+    - Collector eventually reports a genuine DOM/scrape failure
+    - It must NOT silently classify the task as zero inventory
+    """
+    mock_page = MagicMock()
+    mock_page.url = "https://www.spicejet.com/search?from=DEL&to=BOM"
+    mock_page.wait_for_function.side_effect = PlaywrightError("Timeout 25000ms exceeded while waiting for function")
+
+    collector = FirstAirlineCollector(
+        origin="DEL",
+        destination="BOM",
+        travel_date=date(2026, 9, 23),
+    )
+    collector.page = mock_page
+
+    with patch.object(collector, "search_via_form", return_value=True):
+        with pytest.raises(PlaywrightError) as exc_info:
+            collector.collect_quotes()
+
+    assert "Timeout 25000ms exceeded" in str(exc_info.value)
+    assert collector.is_zero_inventory is False
+
+    # Verify adapter classifies as FAILED, NOT SUCCESS_NO_INVENTORY
+    adapter = SpiceJetCollectorAdapter()
+    with patch("backend.collectors.playwright.collectors.first_airline_collector.FirstAirlineCollector", return_value=collector):
+        res = adapter.collect(origin="DEL", destination="BOM", travel_date=date(2026, 9, 23))
+
+    assert res.status == CollectionStatus.FAILED
+    assert res.quotes == []
+    assert "Timeout" in (res.error_message or "")
+
+
+def test_4_dns_failure():
+    """TEST 4 — DNS failure.
+
+    Given navigation raises net::ERR_NAME_NOT_RESOLVED:
+    Expected:
+    - Classify as network/navigation failure
+    - Retry according to existing policy (is_transient_technical_error == True)
+    - Never classify as zero inventory
+    """
+    mock_page = MagicMock()
+    dns_error = PlaywrightError("net::ERR_NAME_NOT_RESOLVED at https://www.spicejet.com/")
+    mock_page.goto.side_effect = dns_error
+
+    collector = FirstAirlineCollector(
+        origin="DEL",
+        destination="IXL",
+        travel_date=date(2026, 10, 1),
+    )
+    collector.page = mock_page
+
+    adapter = SpiceJetCollectorAdapter()
+    with patch("backend.collectors.playwright.collectors.first_airline_collector.FirstAirlineCollector", return_value=collector):
+        res = adapter.collect(origin="DEL", destination="IXL", travel_date=date(2026, 10, 1))
+
+    assert res.status == CollectionStatus.FAILED
+    assert res.quotes == []
+    assert "ERR_NAME_NOT_RESOLVED" in (res.error_message or "")
+    # Ensure it is NOT treated as zero inventory
+    assert res.status != CollectionStatus.SUCCESS_NO_INVENTORY
+    # Ensure orchestrator identifies it as retryable technical error
+    assert is_transient_technical_error(res.error_message or "") is True
+
+
+def test_5_existing_successful_spicejet_route():
+    """TEST 5 — Existing successful SpiceJet route.
+
+    Use an existing known-good case such as DEL-BOM and verify that
+    the fix does not break normal extraction.
+    """
+    t_date = date(2026, 9, 23)
+    collector = FirstAirlineCollector(
+        origin="DEL",
+        destination="BOM",
+        travel_date=t_date,
+    )
+    assert collector.origin == "DEL"
+    assert collector.destination == "BOM"
+    assert collector.travel_date == t_date
+    assert "from=DEL" in collector.build_search_url()
+    assert "to=BOM" in collector.build_search_url()
+    assert "departure=2026-09-23" in collector.build_search_url()
+
+    # Verify flight card parsing on DEL-BOM
+    card_lines = [
+        "08:10",
+        "DEL",
+        "2h 15m",
+        "10:25",
+        "BOM",
+        "SG 8168",
+        "Non-Stop",
+        "₹ 6,299",
+        "Earn 200 Points",
+    ]
+    quote = parse_flight_card_lines(card_lines, "DEL", "BOM", t_date)
+    assert quote is not None
+    assert quote.airline == "SpiceJet"
+    assert quote.flight_number == "SG 8168"
+    assert quote.origin == "DEL"
+    assert quote.destination == "BOM"
+    assert quote.travel_date == t_date
+    assert quote.departure_time == time(8, 10)
+    assert quote.arrival_time == time(10, 25)
+    assert quote.stops == 0
+    assert quote.total_fare == Decimal("6299")
+
+
+def test_6_connecting_flights_multi_leg_parsing():
+    """TEST 6 — Connecting multi-leg flights with comma-separated flight numbers and halts.
+
+    Reproduces the exact live page state discovered on DEL-HYD T+45, CCU-BOM T+7, and CCU-BOM T+15:
+    - Comma-separated flight numbers in DOM (e.g. 'SG 617, SG 688', 'SG 906, SG 162')
+    - Halt notation (e.g. 'Connecting,with halt at VNS', 'Connecting,with halt at DEL')
+    - Next-day arrival notation (e.g. '22:40+1')
+    """
+    # 1. DEL-HYD T+45 connecting flight
+    del_hyd_lines = [
+        "15:50",
+        "DEL",
+        "Flight Details",
+        "6h 30m",
+        "22:20",
+        "HYD",
+        "SG 617, SG 688",
+        "Connecting,with halt at VNS",
+        "₹ 12,243",
+        "Earn 400 Points",
+        "N/A",
+        "Not Available",
+        "₹ 15,183",
+        "Earn 512 Points",
+    ]
+    t_date1 = date(2026, 10, 31)
+    q1 = parse_flight_card_lines(del_hyd_lines, "DEL", "HYD", t_date1)
+    assert q1 is not None
+    assert q1.airline == "SpiceJet"
+    assert q1.flight_number == "SG 617"
+    assert q1.origin == "DEL"
+    assert q1.destination == "HYD"
+    assert q1.travel_date == t_date1
+    assert q1.departure_time == time(15, 50)
+    assert q1.arrival_time == time(22, 20)
+    assert q1.stops == 1
+    assert q1.total_fare == Decimal("12243")
+
+    # 2. CCU-BOM T+7 connecting flight with next-day arrival
+    ccu_bom_lines = [
+        "23:20",
+        "CCU",
+        "Flight Details",
+        "23h 20m",
+        "22:40+1",
+        "BOM",
+        "SG 906, SG 162",
+        "Connecting,with halt at DEL",
+        "₹ 18,246",
+        "Earn 600 Points",
+        "N/A",
+        "Not Available",
+        "₹ 20,872",
+        "Earn 700 Points",
+    ]
+    t_date2 = date(2026, 9, 23)
+    q2 = parse_flight_card_lines(ccu_bom_lines, "CCU", "BOM", t_date2)
+    assert q2 is not None
+    assert q2.airline == "SpiceJet"
+    assert q2.flight_number == "SG 906"
+    assert q2.origin == "CCU"
+    assert q2.destination == "BOM"
+    assert q2.travel_date == t_date2
+    assert q2.departure_time == time(23, 20)
+    assert q2.arrival_time == time(22, 40)
+    assert q2.stops == 1
+    assert q2.total_fare == Decimal("18246")
+
+
 @pytest.mark.skipif(
     os.getenv("RUN_LIVE_AIRLINE_TEST", "false").lower() != "true",
     reason="Live airline portal test skipped by default. Set RUN_LIVE_AIRLINE_TEST=true to run.",
 )
 def test_live_collector_run():
+
     """Live portal integration test (opt-in via env var)."""
     collector = FirstAirlineCollector()
     try:

@@ -1,0 +1,104 @@
+[
+  {
+    "route": "DEL-HYD",
+    "window": "T+45",
+    "travel_date": "2026-10-31",
+    "final_url": "https://www.spicejet.com/search?from=DEL&to=HYD&tripType=1&departure=2026-10-31&adult=1&child=0&srCitizen=0&infant=0&currency=INR&redirectTo=/",
+    "page_title": "SpiceJet - Flight Booking for Domestic and International, Cheap Air Tickets",
+    "screenshot": "scratch\\spicejet_diagnostic_output\\DEL-HYD_T+45.png",
+    "body_text_len": 2084,
+    "extracted_raw_cards_count": 0,
+    "extracted_raw_cards": [],
+    "matched_phrases": [
+      "modify search"
+    ],
+    "alert_texts": [
+      "\u20b9 12,243\nEarn 400\n Points \nN/A\nNot Available\n\u20b9 15,183\nEarn 512\n Points",
+      "15:50\nDEL\nFlight Details\n6h 30m\n22:20\nHYD\nSG 617, SG 688\nConnecting,with halt at VNS\n\u20b9 12,243\nEarn 400\n Points \nN/A\nNot Available\n\u20b9 15,183\nEarn 512\n Points",
+      "Modify Search",
+      "Not Available",
+      "One Way : Delhi to HyderabadDepart Date : Sat, 31 Oct 2026Passengers :  1 Adult \nModify Search",
+      "N/A\nNot Available"
+    ],
+    "date_headers_sample": [
+      "\u20b9\n 12,243\nEarn 400\n Points",
+      "\u20b9",
+      "Wed, 28 Oct\n\u20b9 \n11,018",
+      "Wed, 28 Oct\n\u20b9 \n11,018",
+      "\u20b9 \n11,018",
+      "\u20b9",
+      "Thu, 29 Oct\n\u20b9 \n11,434",
+      "Thu, 29 Oct\n\u20b9 \n11,434",
+      "\u20b9 \n11,434",
+      "\u20b9"
+    ]
+  },
+  {
+    "route": "CCU-BOM",
+    "window": "T+7",
+    "travel_date": "2026-09-23",
+    "final_url": "https://www.spicejet.com/search?from=CCU&to=BOM&tripType=1&departure=2026-09-23&adult=1&child=0&srCitizen=0&infant=0&currency=INR&redirectTo=/",
+    "page_title": "SpiceJet - Flight Booking for Domestic and International, Cheap Air Tickets",
+    "screenshot": "scratch\\spicejet_diagnostic_output\\CCU-BOM_T+7.png",
+    "body_text_len": 2058,
+    "extracted_raw_cards_count": 0,
+    "extracted_raw_cards": [],
+    "matched_phrases": [
+      "modify search"
+    ],
+    "alert_texts": [
+      "One Way : Kolkata to MumbaiDepart Date : Wed, 23 Sep 2026Passengers :  1 Adult \nModify Search",
+      "Modify Search",
+      "23:20\nCCU\nFlight Details\n23h 20m\n22:40+1\nBOM\nSG 906, SG 162\nConnecting,with halt at DEL\n\u20b9 18,246\nEarn 600\n Points \nN/A\nNot Available\n\u20b9 20,872\nEarn 700\n Points",
+      "Not Available",
+      "N/A\nNot Available",
+      "\u20b9 18,246\nEarn 600\n Points \nN/A\nNot Available\n\u20b9 20,872\nEarn 700\n Points"
+    ],
+    "date_headers_sample": [
+      "\u20b9\n 18,246\nEarn 600\n Points",
+      "\u20b9",
+      "Sun, 20 Sep\n\u20b9 \n22,641",
+      "Sun, 20 Sep\n\u20b9 \n22,641",
+      "\u20b9 \n22,641",
+      "\u20b9",
+      "Wed, 23 Sep\n\u20b9 \n18,246",
+      "Wed, 23 Sep\n\u20b9 \n18,246",
+      "\u20b9 \n18,246",
+      "\u20b9"
+    ]
+  },
+  {
+    "route": "CCU-BOM",
+    "window": "T+15",
+    "travel_date": "2026-10-01",
+    "final_url": "https://www.spicejet.com/search?from=CCU&to=BOM&tripType=1&departure=2026-10-01&adult=1&child=0&srCitizen=0&infant=0&currency=INR&redirectTo=/",
+    "page_title": "SpiceJet - Flight Booking for Domestic and International, Cheap Air Tickets",
+    "screenshot": "scratch\\spicejet_diagnostic_output\\CCU-BOM_T+15.png",
+    "body_text_len": 2070,
+    "extracted_raw_cards_count": 0,
+    "extracted_raw_cards": [],
+    "matched_phrases": [
+      "modify search"
+    ],
+    "alert_texts": [
+      "Modify Search",
+      "23:20\nCCU\nFlight Details\n23h 20m\n22:40+1\nBOM\nSG 906, SG 162\nConnecting,with halt at DEL\n\u20b9 13,510\nEarn 420\n Points \nN/A\nNot Available\n\u20b9 16,403\nEarn 532\n Points",
+      "Not Available",
+      "\u20b9 13,510\nEarn 420\n Points \nN/A\nNot Available\n\u20b9 16,403\nEarn 532\n Points",
+      "One Way : Kolkata to MumbaiDepart Date : Thu, 01 Oct 2026Passengers :  1 Adult \nModify Search",
+      "N/A\nNot Available"
+    ],
+    "date_headers_sample": [
+      "\u20b9\n 13,510\nEarn 420\n Points",
+      "\u20b9",
+      "Wed, 30 Sep\n\u20b9 \n28,874",
+      "Wed, 30 Sep\n\u20b9 \n28,874",
+      "\u20b9 \n28,874",
+      "\u20b9",
+      "Thu, 01 Oct\n\u20b9 \n13,510",
+      "Thu, 01 Oct\n\u20b9 \n13,510",
+      "\u20b9 \n13,510",
+      "\u20b9"
+    ]
+  }
+]
